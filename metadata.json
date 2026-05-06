@@ -1,0 +1,7 @@
+{
+  "name": "VisionDefect - Controle de Qualidade Industrial",
+  "description": "Sistema automático de detecção de defeitos em produtos industriais utilizando processamento de imagem e IA.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
