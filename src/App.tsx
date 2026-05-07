@@ -55,7 +55,9 @@ function cn(...inputs: ClassValue[]) {
 }
 
 // Gemini Configuration
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+// Nota: Em ambientes Vite como o Vercel, use import.meta.env.VITE_GEMINI_API_KEY
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+const ai = new GoogleGenAI({ apiKey });
 
 interface AnalysisResult {
   id: string;
