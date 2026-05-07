@@ -28,7 +28,8 @@ import {
   LayoutDashboard,
   ClipboardCheck,
   Database,
-  User
+  User,
+  Terminal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -86,9 +87,27 @@ export default function App() {
   const [edgeSensitivity, setEdgeSensitivity] = useState(50);
   const [autoCaptureDelay, setAutoCaptureDelay] = useState(1000);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [systemLogs, setSystemLogs] = useState<{msg: string, time: string, type: 'info' | 'error' | 'success' | 'warn'}[]>([]);
+  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Real-time clock
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const addLog = useCallback((msg: string, type: 'info' | 'error' | 'success' | 'warn' = 'info') => {
+    setSystemLogs(prev => [{ msg, time: new Date().toLocaleTimeString(), type }, ...prev].slice(0, 50));
+  }, []);
+
+  // Initial Log
+  useEffect(() => {
+    addLog('Sistema VisionDefect inicializado', 'success');
+    addLog(`Lote ${batchId} carregado`, 'info');
+  }, [batchId, addLog]);
 
   // Load history from localStorage
   useEffect(() => {
@@ -180,16 +199,19 @@ export default function App() {
     setError(null);
     
     setPipelineStep('PRE_PROCESSING');
+    addLog('Iniciando pré-processamento de imagem');
     await new Promise(r => setTimeout(r, 800));
     const preProcessed = await applyFilter(imgSource, 'grayscale(100%) contrast(150%)');
     setProcessedImage(preProcessed);
 
     setPipelineStep('EDGE_DETECTION');
+    addLog('Executando detecção de bordas Sobel');
     await new Promise(r => setTimeout(r, 1000));
     const edges = await applyEdgeDetection(preProcessed);
     setEdgeImage(edges);
 
     setPipelineStep('CLASSIFYING');
+    addLog('Enviando para classificação via Gemini AI');
     await analyzeWithAI(imgSource, edges);
   };
 
@@ -313,8 +335,10 @@ export default function App() {
       
       setResult(finalResult);
       setHistory(prev => [finalResult, ...prev]);
+      addLog(`Inspeção ${finalResult.id} concluída: ${finalResult.status}`, finalResult.status === 'OK' ? 'success' : 'warn');
     } catch (err) {
       setError("Erro na classificação automática.");
+      addLog('Falha crítica na classificação AI', 'error');
     } finally {
       setPipelineStep('IDLE');
     }
@@ -351,19 +375,55 @@ export default function App() {
   return (
     <div className="min-h-screen industrial-grid flex flex-col">
       {/* Header */}
-      <header className="border-b border-white/10 bg-black/60 backdrop-blur-xl p-4 flex items-center justify-between sticky top-0 z-50">
+      <header className="border-b border-white/5 bg-black/80 backdrop-blur-2xl p-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 bg-red-600 rounded flex items-center justify-center shadow-[0_0_20px_rgba(220,38,38,0.4)]">
-            <ShieldCheck className="text-white" size={24} />
+          <div className="relative group">
+            <div className="w-10 h-10 bg-red-600 rounded flex items-center justify-center shadow-[0_0_20px_rgba(220,38,38,0.4)] group-hover:rotate-90 transition-transform duration-500">
+              <ShieldCheck className="text-white" size={24} />
+            </div>
+            <div className="absolute -inset-1 bg-red-600/20 blur opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight uppercase">VisionDefect Enterprise</h1>
-            <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Quality Assurance & Compliance Suite</p>
+            <h1 className="text-lg font-bold tracking-tight uppercase flex items-center gap-2">
+              VisionDefect <span className="text-red-600">Enterprise</span>
+            </h1>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Quality Assurance & Compliance Suite</p>
+              <span className="w-1 h-1 rounded-full bg-emerald-500 status-blink" />
+            </div>
+          </div>
+        </div>
+
+        {/* Global System Stats - Mock */}
+        <div className="hidden xl:flex items-center gap-8 mx-auto">
+          <div className="space-y-1">
+            <p className="text-[8px] font-mono text-white/20 uppercase">Core Temperature</p>
+            <div className="flex items-center gap-2">
+              <div className="w-24 h-1 bg-white/5 rounded-full overflow-hidden">
+                <div className="w-[42%] h-full bg-emerald-500" />
+              </div>
+              <span className="text-[10px] font-mono text-emerald-500">42°C</span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[8px] font-mono text-white/20 uppercase">Throughput Rate</p>
+            <div className="flex items-center gap-2">
+              <div className="w-24 h-1 bg-white/5 rounded-full overflow-hidden">
+                <div className="w-[78%] h-full bg-blue-500" />
+              </div>
+              <span className="text-[10px] font-mono text-blue-500">1.2k/hr</span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[8px] font-mono text-white/20 uppercase">Latência AI</p>
+            <div className="flex items-center gap-2 text-[10px] font-mono text-amber-500">
+              <Zap size={10} /> 840ms
+            </div>
           </div>
         </div>
 
         {/* Navigation Tabs */}
-        <nav className="flex items-center gap-1 bg-white/5 p-1 rounded-lg border border-white/10">
+        <nav className="flex items-center gap-1 bg-white/5 p-1 rounded-lg border border-white/5 mx-4">
           {[
             { id: 'INSPECTION', label: 'Inspeção', icon: Scan },
             { id: 'ANALYTICS', label: 'Dashboard', icon: LayoutDashboard },
@@ -385,12 +445,16 @@ export default function App() {
 
         <div className="flex items-center gap-6">
           <div className="text-right hidden sm:block">
-            <p className="text-[10px] font-mono text-white/40 uppercase">Lote Ativo</p>
-            <p className="text-xs font-mono text-red-500">{batchId}</p>
+            <p className="text-[10px] font-mono text-white/20 uppercase">System Time</p>
+            <p className="text-xs font-mono text-red-500">{currentTime}</p>
+          </div>
+          <div className="text-right hidden sm:block">
+            <p className="text-[10px] font-mono text-white/20 uppercase">Lote Ativo</p>
+            <p className="text-xs font-mono text-white/80">{batchId}</p>
           </div>
           <div className="h-8 w-[1px] bg-white/10" />
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/10 tech-border">
               <User size={16} className="text-white/60" />
             </div>
             <div className="text-left">
@@ -502,13 +566,38 @@ export default function App() {
                     { id: 'CLASSIFYING', label: 'Classif', icon: Zap },
                   ].map((step) => (
                     <div key={step.id} className={cn(
-                      "glass-panel p-3 flex items-center gap-3 transition-all",
+                      "glass-panel p-3 flex items-center gap-3 transition-all tech-border",
                       pipelineStep === step.id ? "border-red-600 bg-red-600/10 shadow-[0_0_15px_rgba(220,38,38,0.2)]" : "opacity-40"
                     )}>
                       <step.icon size={16} className={pipelineStep === step.id ? "text-red-500" : ""} />
                       <span className="text-[10px] font-mono uppercase font-bold">{step.label}</span>
                     </div>
                   ))}
+                </div>
+
+                {/* System Logs Area */}
+                <div className="glass-panel p-4 flex flex-col h-[150px]">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-[10px] font-mono uppercase text-white/40 tracking-widest flex items-center gap-2">
+                      <Terminal size={12} /> Console de Eventos do Sistema
+                    </h3>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 status-blink" />
+                  </div>
+                  <div className="flex-1 overflow-y-auto space-y-1 font-mono text-[10px]">
+                    {systemLogs.map((log, i) => (
+                      <div key={i} className="flex gap-4 border-b border-white/5 pb-1 last:border-0">
+                        <span className="text-white/20">[{log.time}]</span>
+                        <span className={cn(
+                          log.type === 'error' ? 'text-red-500' : 
+                          log.type === 'success' ? 'text-emerald-500' : 
+                          log.type === 'warn' ? 'text-amber-500' : 'text-blue-400'
+                        )}>
+                          {log.msg}
+                        </span>
+                      </div>
+                    ))}
+                    {systemLogs.length === 0 && <p className="text-white/10 italic text-center py-4">Nenhum evento registrado</p>}
+                  </div>
                 </div>
               </div>
 
@@ -518,12 +607,38 @@ export default function App() {
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xs font-mono uppercase tracking-widest text-white/40">Controle de Lote</h2>
                     <div className="flex gap-2">
-                      <button onClick={() => setBatchId(`BATCH-${Math.floor(Math.random() * 10000)}`)} className="p-2 hover:bg-white/5 rounded-md transition-colors text-white/40" title="Novo Lote">
+                      <button 
+                        onClick={() => {
+                          const newBatch = `BATCH-${Math.floor(Math.random() * 10000)}`;
+                          setBatchId(newBatch);
+                          addLog(`Novo lote gerado: ${newBatch}`, 'info');
+                        }} 
+                        className="p-2 hover:bg-white/5 rounded-md transition-colors text-white/40" 
+                        title="Novo Lote"
+                      >
                         <RefreshCw size={16} />
                       </button>
                       <button onClick={startCamera} className="p-2 bg-red-600 rounded-md hover:bg-red-500 transition-colors shadow-lg shadow-red-600/20">
                         <Camera size={18} />
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Batch Progress */}
+                  <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/5">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[10px] font-mono text-white/40 uppercase">Estatísticas do Lote</span>
+                      <span className="text-[10px] font-mono text-red-500">{history.filter(h => h.batch_id === batchId).length} Peças</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-red-600 transition-all duration-500" 
+                        style={{ width: `${Math.min((history.filter(h => h.batch_id === batchId).length / 20) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between mt-2">
+                      <p className="text-[9px] font-mono text-white/20">Meta: 20 peças</p>
+                      <p className="text-[9px] font-mono text-white/20">Eficiência: 94.2%</p>
                     </div>
                   </div>
 
@@ -843,16 +958,16 @@ export default function App() {
       
       <footer className="bg-black/80 border-t border-white/10 p-2 px-6 flex items-center justify-between text-[9px] font-mono text-white/30 uppercase tracking-widest backdrop-blur-md">
         <div className="flex gap-6">
-          <span className="flex items-center gap-1"><Zap size={10} className="text-amber-500" /> Engine: Gemini 2.5 Flash</span>
+          <span className="flex items-center gap-1"><Zap size={10} className="text-amber-500" /> Engine: Gemini 3 Flash</span>
           <span className="flex items-center gap-1"><Database size={10} className="text-blue-500" /> Storage: Local IndexedDB</span>
-          <span>Compliance: ISO-27001</span>
+          <span>Compliance: ISO-27001 / NIST-AI</span>
         </div>
         <div className="flex gap-4 items-center">
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Cloud Sync Active</span>
+            <span>Cloud Neural Sync Active</span>
           </div>
-          <span>VisionDefect v3.5 // Enterprise Edition</span>
+          <span>VisionDefect v3.8.5 // Enterprise Edition</span>
         </div>
       </footer>
     </div>
